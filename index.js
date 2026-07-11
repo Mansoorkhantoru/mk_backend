@@ -2288,6 +2288,8 @@ app.get("/api/payment-status", async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 });
+console.log("EMAIL:", process.env.EMAIL ? "SET" : "MISSING")
+console.log("EMAIL_PASS:", process.env.EMAIL_PASS ? "SET" : "MISSING")
 
 server.listen(3000, () => {
     console.log("🚀 Server running on port 3000");
