@@ -1,7 +1,7 @@
 const transporter = require('./mail');
 const dotenv = require('dotenv');
 dotenv.config();
-
+const Singup = require('../models/singup'); 
 // Send order confirmation to customer
 const sendOrderConfirmationEmail = async (order) => {
     try {
