@@ -2828,12 +2828,11 @@ app.get("/ads",async(req,res)=>{
 })
 
 
-
 app.get("/top-rated", async (req, res) => {
     const products = await Product.find()
         .sort({
-            rating: -1,
-            reviewCount: -1
+            averageRating: -1,
+            totalReviews: -1
         })
         .limit(10);
 
