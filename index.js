@@ -2813,7 +2813,7 @@ app.get("/ads",async(req,res)=>{
     try{
         const ads =await Singup.find({
       adhero: { $exists: true, $ne: null }
-    }).select("adhero , prodcutUrl , shopUrl");
+    }).select("adhero , productUrl , shopUrl");
         res.send({
             success:true,
             ads 
