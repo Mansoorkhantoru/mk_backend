@@ -2838,6 +2838,32 @@ app.get("/top-rated", async (req, res) => {
 
     res.json(products);
 });
+
+app.get("/search", async (req, res) => {
+    try {
+        const q = req.query.q;
+
+        const products = await Product.find({
+            name: { $regex: q, $options: "i" }
+        }).limit(10);
+
+        const shops = await Singup.find({
+            shopName: { $regex: q, $options: "i" }
+        }).limit(10);
+
+        res.json({
+            products,
+            shops
+        });
+
+    } catch (err) {
+        res.status(500).json({
+            message: err.message
+        });
+    }
+});
+
+
 server.listen(3000, () => {
     console.log("🚀 Server running on port 3000");
     console.log("✅ All routes ready!");
