@@ -2826,6 +2826,19 @@ app.get("/ads",async(req,res)=>{
         })
     }
 })
+
+
+
+router.get("/top-rated", async (req, res) => {
+    const products = await Product.find()
+        .sort({
+            rating: -1,
+            reviewCount: -1
+        })
+        .limit(10);
+
+    res.json(products);
+});
 server.listen(3000, () => {
     console.log("🚀 Server running on port 3000");
     console.log("✅ All routes ready!");

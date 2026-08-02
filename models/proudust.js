@@ -21,7 +21,21 @@ const productSchema = new mongoose.Schema({
     totalReviews: {
         type: Number,
         default: 0
-    }
+    },
+    
+    //for top product
+    rating: {
+    type: Number,
+    default: 0
+},
+reviewCount: {
+    type: Number,
+    default: 0
+},
+soldCount: {
+    type: Number,
+    default: 0
+}
 
 }, {
     timestamps: true
