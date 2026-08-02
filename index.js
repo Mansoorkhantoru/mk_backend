@@ -2829,7 +2829,7 @@ app.get("/ads",async(req,res)=>{
 
 
 
-router.get("/top-rated", async (req, res) => {
+app.get("/top-rated", async (req, res) => {
     const products = await Product.find()
         .sort({
             rating: -1,
