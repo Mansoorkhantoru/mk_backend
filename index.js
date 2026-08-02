@@ -68,6 +68,16 @@ const otpStore = {}
 app.post("/singup", upload.single('image'), async (req, res) => {
     try {
         const { email, password, shopName } = req.body;
+          const existingEmail = await Singup.findOne({ email })
+        if (existingEmail) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Ye email already registered hai! Koi aur email use karein." 
+            })
+        }
+
+      
+
         const hashPassword = await bcrypt.hash(password, 10)
         if (!req.file) {
             return res.status(400).json({
@@ -127,6 +137,13 @@ app.post("/login", async (req, res) => {
 app.post("/send-otp", async (req, res) => {
     try {
         const { email } = req.body
+          const existingUser = await Singup.findOne({ email })
+        if (existingUser) {
+            return res.status(400).json({
+                success: false,
+                message: "❌ This email is already registered! Please login instead."
+            })
+        }
         const otp = Math.floor(100000 + Math.random() * 900000)
         otpStore[email] = otp
         await transporter.sendMail({
@@ -149,14 +166,47 @@ app.post("/send-otp", async (req, res) => {
 
 app.post("/verify-otp", async (req, res) => {
     try {
-        const { email, otp, password } = req.body
-        const hashPassword = await bcrypt.hash(password, 10)
-        if (otpStore[email] != otp) {
+      const { email, otp, password, cpassword } = req.body  // ✅ cpassword add karein
+        
+        // ✅ Check if passwords match
+        if (password !== cpassword) {
+            return res.status(400).json({
+                success: false,
+                message: "Passwords do not match!"
+            });
+        }
+        
+        // ✅ Check password length
+        if (password.length < 6) {
+            return res.status(400).json({
+                success: false,
+                message: "Password must be at least 6 characters long"
+            });
+        }
+        
+        // ✅ Check if OTP exists for this email
+        if (!otpStore[email]) {
+            return res.status(400).json({
+                success: false,
+                message: "Please request OTP first"
+            });
+        }
+        
+       if (otpStore[email] != otp) {
             return res.status(400).json({
                 success: false,
                 message: "Invalid OTP"
             })
         }
+         const existingUser = await Singup.findOne({ email })
+        if (existingUser) {
+            return res.status(400).json({
+                success: false,
+                message: "Email already registered! Please login."
+            });
+        }
+           const hashPassword = await bcrypt.hash(password, 10)
+      
         const user = await Singup.create({
             email,
             password: hashPassword,
@@ -185,7 +235,15 @@ app.post("/verify-otp", async (req, res) => {
 app.post("/create-shop", auth, upload.single('image'), async (req, res) => {
     try {
         const { shopName, description, address, phone } = req.body;
-        
+          if (shopName) {
+            const existingShop = await Singup.findOne({ shopName })
+            if (existingShop) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: "Ye shop name already use ho raha hai! Koi aur name rakhein." 
+                })
+            }
+        }
         if (!shopName || shopName.trim() === '') {
             return res.status(400).json({
                 success: false,
@@ -2187,6 +2245,7 @@ app.get('/stats', async (req, res) => {
 
 
 const Setting = require("./models/Setting");
+const singup = require("./models/singup");
 
 // ========== INITIALIZE SETTINGS ==========
 app.post("/admin/init-settings", async (req, res) => {
@@ -2288,9 +2347,467 @@ app.get("/api/payment-status", async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 });
-console.log("EMAIL:", process.env.EMAIL ? "SET" : "MISSING")
-console.log("EMAIL_PASS:", process.env.EMAIL_PASS ? "SET" : "MISSING")
+// ========== FORGOT PASSWORD - REQUEST OTP ==========
+app.post("/forgot-password", async (req, res) => {
+    try {
+        const { email } = req.body;
+        
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                message: "Email is required"
+            });
+        }
 
+        // Find user by email
+        const user = await Singup.findOne({ email });
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "No account found with this email"
+            });
+        }
+
+        // Check if OTP is locked
+        if (user.resetOTPLocked) {
+            if (user.resetOTPLockExpiry && new Date() < user.resetOTPLockExpiry) {
+                const remainingMinutes = Math.ceil((user.resetOTPLockExpiry - new Date()) / 60000);
+                return res.status(429).json({
+                    success: false,
+                    message: `Too many attempts. Please try again in ${remainingMinutes} minutes.`
+                });
+            } else {
+                // Unlock if expiry passed
+                user.resetOTPLocked = false;
+                user.resetOTPAttempts = 0;
+                user.resetOTPLockExpiry = null;
+                await user.save();
+            }
+        }
+
+        // Generate 6-digit OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        
+        // Set expiry (10 minutes from now)
+        const expiry = new Date(Date.now() + 10 * 60 * 1000);
+        
+        // Save OTP to user
+        user.resetOTP = otp;
+        user.resetOTPExpiry = expiry;
+        user.resetOTPAttempts = 0; // Reset attempts
+        await user.save();
+
+        // Send OTP via email
+        await transporter.sendMail({
+            from: process.env.EMAIL,
+            to: email,
+            subject: "🔐 Password Reset OTP",
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+                    <h2 style="color: #2563eb; text-align: center;">Password Reset Request</h2>
+                    <p style="text-align: center; font-size: 16px; color: #333;">Hello ${user.shopName || 'User'},</p>
+                    <p style="text-align: center; font-size: 16px; color: #333;">You requested to reset your password. Use the OTP below to verify your identity:</p>
+                    <div style="text-align: center; padding: 20px; background-color: #f3f4f6; border-radius: 8px; margin: 20px 0;">
+                        <span style="font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #1f2937;">${otp}</span>
+                    </div>
+                    <p style="text-align: center; font-size: 14px; color: #6b7280;">This OTP will expire in <strong>10 minutes</strong>.</p>
+                    <p style="text-align: center; font-size: 14px; color: #6b7280;">If you didn't request this, please ignore this email.</p>
+                    <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 20px 0;">
+                    <p style="text-align: center; font-size: 12px; color: #9ca3af;">© 2025 Shop Management System</p>
+                </div>
+            `
+        });
+
+        res.json({
+            success: true,
+            message: "OTP sent to your email. It will expire in 10 minutes.",
+            email: user.email
+        });
+
+    } catch (error) {
+        console.error("Forgot password error:", error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to send OTP. Please try again later."
+        });
+    }
+});
+
+// ========== VERIFY OTP AND RESET PASSWORD ==========
+app.post("/verify-reset-otp", async (req, res) => {
+    try {
+        const { email, otp, newPassword, confirmPassword } = req.body;
+
+        // Validate required fields
+        if (!email || !otp || !newPassword || !confirmPassword) {
+            return res.status(400).json({
+                success: false,
+                message: "All fields are required"
+            });
+        }
+
+        // Check if passwords match
+        if (newPassword !== confirmPassword) {
+            return res.status(400).json({
+                success: false,
+                message: "Passwords do not match"
+            });
+        }
+
+        // Check password length
+        if (newPassword.length < 6) {
+            return res.status(400).json({
+                success: false,
+                message: "Password must be at least 6 characters long"
+            });
+        }
+
+        // Find user by email
+        const user = await Singup.findOne({ email });
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        // Check if OTP is locked
+        if (user.resetOTPLocked) {
+            if (user.resetOTPLockExpiry && new Date() < user.resetOTPLockExpiry) {
+                const remainingMinutes = Math.ceil((user.resetOTPLockExpiry - new Date()) / 60000);
+                return res.status(429).json({
+                    success: false,
+                    message: `Too many attempts. Please try again in ${remainingMinutes} minutes.`
+                });
+            } else {
+                // Unlock if expiry passed
+                user.resetOTPLocked = false;
+                user.resetOTPAttempts = 0;
+                user.resetOTPLockExpiry = null;
+                await user.save();
+            }
+        }
+
+        // Check if OTP exists
+        if (!user.resetOTP) {
+            return res.status(400).json({
+                success: false,
+                message: "No OTP request found. Please request a new OTP."
+            });
+        }
+
+        // Check if OTP is expired
+        if (new Date() > user.resetOTPExpiry) {
+            // Clear expired OTP
+            user.resetOTP = null;
+            user.resetOTPExpiry = null;
+            await user.save();
+            return res.status(400).json({
+                success: false,
+                message: "OTP has expired. Please request a new one."
+            });
+        }
+
+        // Verify OTP
+        if (user.resetOTP !== otp) {
+            // Increment attempts
+            user.resetOTPAttempts += 1;
+            
+            // Lock after 5 failed attempts
+            if (user.resetOTPAttempts >= 5) {
+                user.resetOTPLocked = true;
+                user.resetOTPLockExpiry = new Date(Date.now() + 30 * 60 * 1000); // Lock for 30 minutes
+                await user.save();
+                return res.status(429).json({
+                    success: false,
+                    message: "Too many failed attempts. Account locked for 30 minutes."
+                });
+            }
+            
+            await user.save();
+            return res.status(400).json({
+                success: false,
+                message: `Invalid OTP. ${5 - user.resetOTPAttempts} attempts remaining.`
+            });
+        }
+
+        // ========== OTP IS CORRECT - RESET PASSWORD ==========
+        
+        // Hash new password
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        
+        // Update user
+        user.password = hashedPassword;
+        user.resetOTP = null;
+        user.resetOTPExpiry = null;
+        user.resetOTPAttempts = 0;
+        user.resetOTPLocked = false;
+        user.resetOTPLockExpiry = null;
+        await user.save();
+
+        // Send confirmation email
+        await transporter.sendMail({
+            from: process.env.EMAIL,
+            to: email,
+            subject: "✅ Password Changed Successfully",
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+                    <h2 style="color: #22c55e; text-align: center;">Password Changed Successfully</h2>
+                    <p style="text-align: center; font-size: 16px; color: #333;">Hello ${user.shopName || 'User'},</p>
+                    <p style="text-align: center; font-size: 16px; color: #333;">Your password has been successfully changed.</p>
+                    <div style="text-align: center; padding: 10px; background-color: #f0fdf4; border-radius: 8px; margin: 20px 0;">
+                        <p style="font-size: 14px; color: #16a34a;">✅ If you made this change, no further action is needed.</p>
+                    </div>
+                    <p style="text-align: center; font-size: 14px; color: #6b7280;">If you didn't change your password, please contact support immediately.</p>
+                    <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 20px 0;">
+                    <p style="text-align: center; font-size: 12px; color: #9ca3af;">© 2025 Shop Management System</p>
+                </div>
+            `
+        });
+
+        res.json({
+            success: true,
+            message: "Password reset successfully. You can now login with your new password."
+        });
+
+    } catch (error) {
+        console.error("Reset password error:", error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to reset password. Please try again."
+        });
+    }
+});
+
+// ========== RESEND OTP ==========
+app.post("/resend-reset-otp", async (req, res) => {
+    try {
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                message: "Email is required"
+            });
+        }
+
+        const user = await Singup.findOne({ email });
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        // Check if locked
+        if (user.resetOTPLocked) {
+            if (user.resetOTPLockExpiry && new Date() < user.resetOTPLockExpiry) {
+                const remainingMinutes = Math.ceil((user.resetOTPLockExpiry - new Date()) / 60000);
+                return res.status(429).json({
+                    success: false,
+                    message: `Too many attempts. Please try again in ${remainingMinutes} minutes.`
+                });
+            } else {
+                user.resetOTPLocked = false;
+                user.resetOTPAttempts = 0;
+                user.resetOTPLockExpiry = null;
+                await user.save();
+            }
+        }
+
+        // Generate new OTP
+        const newOTP = Math.floor(100000 + Math.random() * 900000).toString();
+        const expiry = new Date(Date.now() + 10 * 60 * 1000);
+
+        user.resetOTP = newOTP;
+        user.resetOTPExpiry = expiry;
+        user.resetOTPAttempts = 0;
+        await user.save();
+
+        // Send new OTP
+        await transporter.sendMail({
+            from: process.env.EMAIL,
+            to: email,
+            subject: "🔄 New Password Reset OTP",
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+                    <h2 style="color: #2563eb; text-align: center;">New OTP Generated</h2>
+                    <p style="text-align: center; font-size: 16px; color: #333;">Hello ${user.shopName || 'User'},</p>
+                    <p style="text-align: center; font-size: 16px; color: #333;">Here is your new OTP:</p>
+                    <div style="text-align: center; padding: 20px; background-color: #f3f4f6; border-radius: 8px; margin: 20px 0;">
+                        <span style="font-size: 36px; font-weight: bold; letter-spacing: 8px; color: #1f2937;">${newOTP}</span>
+                    </div>
+                    <p style="text-align: center; font-size: 14px; color: #6b7280;">This OTP will expire in <strong>10 minutes</strong>.</p>
+                    <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 20px 0;">
+                    <p style="text-align: center; font-size: 12px; color: #9ca3af;">© 2025 Shop Management System</p>
+                </div>
+            `
+        });
+
+        res.json({
+            success: true,
+            message: "New OTP sent to your email."
+        });
+
+    } catch (error) {
+        console.error("Resend OTP error:", error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to resend OTP. Please try again."
+        });
+    }
+});
+
+// ========== CHECK EMAIL EXISTS ==========
+app.post("/check-email", async (req, res) => {
+    try {
+        const { email } = req.body;
+        
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                message: "Email is required"
+            });
+        }
+
+        const user = await Singup.findOne({ email });
+        
+        res.json({
+            success: true,
+            exists: !!user,
+            message: user ? "Email found" : "Email not found"
+        });
+
+    } catch (error) {
+        console.error("Check email error:", error);
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+});
+
+
+app.put("/profile/update", auth, upload.single('image'), async (req, res) => {
+    try {
+        const { shopName, description, address, phone, email } = req.body;
+        
+        // Find user
+        const user = await Singup.findById(req.userId);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        // Check if email is being changed and already exists
+        if (email && email !== user.email) {
+            const existingEmail = await Singup.findOne({ 
+                email: email,
+                _id: { $ne: req.userId } // Exclude current user
+            });
+            if (existingEmail) {
+                return res.status(400).json({
+                    success: false,
+                    message: "This email is already registered with another account"
+                });
+            }
+            user.email = email;
+        }
+
+        // Check if shop name is being changed and already exists
+        if (shopName && shopName.trim() !== '' && shopName !== user.shopName) {
+            const existingShop = await Singup.findOne({ 
+                shopName: shopName.trim(),
+                _id: { $ne: req.userId }
+            });
+            if (existingShop) {
+                return res.status(400).json({
+                    success: false,
+                    message: "This shop name is already taken. Please choose another."
+                });
+            }
+            user.shopName = shopName.trim();
+        }
+
+        // Update other fields
+        if (description !== undefined) {
+            user.description = description || '';
+        }
+        if (address !== undefined) {
+            user.address = address || '';
+        }
+        if (phone !== undefined) {
+            user.phone = phone || '';
+        }
+
+        // Handle image upload
+        if (req.file) {
+            // Delete old image from Cloudinary
+            if (user.publicId) {
+                try {
+                    await cloudinary.uploader.destroy(user.publicId);
+                } catch (err) {
+                    console.log("Old image deletion failed:", err.message);
+                }
+            }
+            user.image = req.file.path;
+            user.publicId = req.file.filename;
+        }
+
+        await user.save();
+
+        // Return updated user without password
+        const updatedUser = await Singup.findById(req.userId).select("-password");
+
+        res.json({
+            success: true,
+            message: "Profile updated successfully! ✅",
+            user: updatedUser
+        });
+
+    } catch (error) {
+        console.error("Profile update error:", error);
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+});
+app.post("/adhero" ,upload.single('adhero'), async(req,res)=>{
+    try{
+        const shopId = req.userId;
+        if(req.userId !== shopId){
+            return res.status(403).json({
+                success:false,
+                message:"Not authorized"
+            })
+        }
+        const adhero = await Singup.findById('shopId');
+        if(!adhero){
+            res.status(403).json({
+                succes:false,
+                message:"shop not found"
+            })
+        }
+        adhero.adhero = req.file.path;
+        adhero.adpublicId =req.file.filename;
+        adhero.productUrl=req.body.productUrl;
+        adhero.shopUrl=req.body.shopUrl;
+        await adhero.save();
+        res.json({
+            success:true,
+            message:"Ad succfully uploaded",
+            adHero :adhero.adhero
+        })
+    }catch(error){
+        res.status(500).json({
+            success:false,
+            message:error.message
+        })
+    }
+})
 server.listen(3000, () => {
     console.log("🚀 Server running on port 3000");
     console.log("✅ All routes ready!");
