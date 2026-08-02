@@ -2811,7 +2811,7 @@ app.post("/adhero" ,auth,upload.single('adhero'), async(req,res)=>{
 })
 app.get("/ads",async(req,res)=>{
     try{
-        const ads =await Singup.find();
+        const ads =await Singup.find().select(adhero , prodcutUrl , shopUrl);
         res.send({
             success:true,
             ads 
