@@ -2775,7 +2775,7 @@ app.put("/profile/update", auth, upload.single('image'), async (req, res) => {
         });
     }
 });
-app.post("/adhero" ,upload.single('adhero'), async(req,res)=>{
+app.post("/adhero" ,auth,upload.single('adhero'), async(req,res)=>{
     try{
         const shopId = req.userId;
         if(req.userId !== shopId){
@@ -2784,7 +2784,7 @@ app.post("/adhero" ,upload.single('adhero'), async(req,res)=>{
                 message:"Not authorized"
             })
         }
-        const adhero = await Singup.findById('shopId');
+        const adhero = await Singup.findById(shopId);
         if(!adhero){
             res.status(403).json({
                 succes:false,
@@ -2802,6 +2802,7 @@ app.post("/adhero" ,upload.single('adhero'), async(req,res)=>{
             adHero :adhero.adhero
         })
     }catch(error){
+          console.error("Adhero error:", error);
         res.status(500).json({
             success:false,
             message:error.message
