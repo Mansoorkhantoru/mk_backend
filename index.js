@@ -2834,7 +2834,7 @@ app.get("/top-rated", async (req, res) => {
             averageRating: -1,
             totalReviews: -1
         })
-        .limit(10);
+       
 
     res.json(products);
 });
