@@ -2809,6 +2809,21 @@ app.post("/adhero" ,auth,upload.single('adhero'), async(req,res)=>{
         })
     }
 })
+app.get("/ads",async(req,res)=>{
+    try{
+        const ads =await Singup.find();
+        res.send({
+            success:true,
+            ads 
+        })
+
+    }catch(error){
+        res.status(500).json({
+            success:false,
+            message:error.message
+        })
+    }
+})
 server.listen(3000, () => {
     console.log("🚀 Server running on port 3000");
     console.log("✅ All routes ready!");
