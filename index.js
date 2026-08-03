@@ -2827,16 +2827,26 @@ app.get("/ads",async(req,res)=>{
     }
 })
 
-
 app.get("/top-rated", async (req, res) => {
-    const products = await Product.find()
-        .sort({
-            averageRating: -1,
-            totalReviews: -1
-        })
-       
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = 10;
 
-    res.json(products);
+        const products = await Product.find()
+            .sort({
+                averageRating: -1,
+                totalReviews: -1
+            })
+            .skip((page - 1) * limit)
+            .limit(limit);
+
+        res.json(products);
+
+    } catch (err) {
+        res.status(500).json({
+            message: err.message
+        });
+    }
 });
 
 app.get("/search", async (req, res) => {
