@@ -2775,6 +2775,9 @@ app.put("/profile/update", auth, upload.single('image'), async (req, res) => {
         });
     }
 });
+
+
+const Ad = require("./models/Ad")
 app.post("/adhero" ,auth,upload.single('adhero'), async(req,res)=>{
     try{
         const shopId = req.userId;
@@ -2784,7 +2787,7 @@ app.post("/adhero" ,auth,upload.single('adhero'), async(req,res)=>{
                 message:"Not authorized"
             })
         }
-        const adhero = await Singup.findById(shopId);
+        const adhero = await Ad.findById(shopId);
         if(!adhero){
             res.status(403).json({
                 succes:false,
@@ -2811,7 +2814,7 @@ app.post("/adhero" ,auth,upload.single('adhero'), async(req,res)=>{
 })
 app.get("/ads",async(req,res)=>{
     try{
-        const ads =await Singup.find({
+        const ads =await Ad.find({
       adhero: { $exists: true, $ne: null }
     }).select("adhero , productUrl , shopUrl");
         res.send({

@@ -59,18 +59,22 @@ const UsersingupSchema = mongoose.Schema({
     resetOTPLockExpiry: {
         type: Date,
         default: null
-    },adhero:{
-        type:String,
+    },
+    // adhero:{
+    //     type:String,
         
-    },adpublicId:{
-        type:String
-    },productUrl:{
-        type:String,
-        required:true
-    },shopUrl:{
-        type:String,
-        required:true
-    }
+    // },
+    // adpublicId:{
+    //     type:String
+    // },
+    // productUrl:{
+    //     type:String,
+    //     required:true
+    // },
+    // shopUrl:{
+    //     type:String,
+    //     required:true
+    // }
 }, { timestamps: true })
 
 // Yeh ensure karega ke agar MongoDB mein already duplicate data hai to index build ho sake
