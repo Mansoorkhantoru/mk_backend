@@ -2778,40 +2778,40 @@ app.put("/profile/update", auth, upload.single('image'), async (req, res) => {
 
 
 const Ad = require("./models/Ad")
-app.post("/adhero" ,auth,upload.single('adhero'), async(req,res)=>{
-    try{
+app.post("/adhero", auth, upload.single('adhero'), async (req, res) => {
+    try {
         const shopId = req.userId;
-        if(req.userId !== shopId){
-            return res.status(403).json({
-                success:false,
-                message:"Not authorized"
-            })
+
+        // Ye check bilkul zaroori nahi (shopId hamesha req.userId ke equal hoga)
+        // isko hata sakte ho
+
+        let adhero = await Ad.findOne({ userId: shopId });
+
+        if (!adhero) {
+            // Naya ad create karo agar pehle se exist nahi karta
+            adhero = new Ad({ userId: shopId });
         }
-        const adhero = await Ad.findOne({ userId: shopId });
-        if(!adhero){
-            res.status(403).json({
-                succes:false,
-                message:"shop not found"
-            })
-        }
+
         adhero.adhero = req.file.path;
-        adhero.adpublicId =req.file.filename;
-        adhero.productUrl=req.body.productUrl;
-        adhero.shopUrl=req.body.shopUrl;
+        adhero.adpublicId = req.file.filename;
+        adhero.productUrl = req.body.productUrl;
+        adhero.shopUrl = req.body.shopUrl;
+
         await adhero.save();
+
         res.json({
-            success:true,
-            message:"Ad succfully uploaded",
-            adHero :adhero.adhero
-        })
-    }catch(error){
-          console.error("Adhero error:", error);
+            success: true,
+            message: "Ad successfully uploaded",
+            adHero: adhero.adhero
+        });
+    } catch (error) {
+        console.error("Adhero error:", error);
         res.status(500).json({
-            success:false,
-            message:error.message
-        })
+            success: false,
+            message: error.message
+        });
     }
-})
+});
 app.get("/ads",async(req,res)=>{
     try{
         const ads =await Ad.find({
