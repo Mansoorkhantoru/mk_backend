@@ -20,7 +20,8 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const transporter = {
     sendMail: async ({ from, to, subject, html, text }) => {
         const { data, error } = await resend.emails.send({
-            from: 'onboarding@resend.dev', // shuru mein testing ke liye yehi use karo
+            // from: 'onboarding@resend.dev', // shuru mein testing ke liye yehi use karo
+            from: "MK Shop <noreply@shopsmk.com>",
             to,
             subject,
             html,
