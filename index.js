@@ -2778,7 +2778,7 @@ app.put("/profile/update", auth, upload.single('image'), async (req, res) => {
 
 
 const Ad = require("./models/Ad")
-app.post("/adhero" ,upload.single('adhero'), async(req,res)=>{
+app.post("/adhero" ,auth,upload.single('adhero'), async(req,res)=>{
     try{
         const shopId = req.userId;
         if(req.userId !== shopId){
@@ -2787,7 +2787,7 @@ app.post("/adhero" ,upload.single('adhero'), async(req,res)=>{
                 message:"Not authorized"
             })
         }
-        const adhero = await Ad.findById(shopId);
+        const adhero = await Ad.findOne({ userId: shopId });
         if(!adhero){
             res.status(403).json({
                 succes:false,
