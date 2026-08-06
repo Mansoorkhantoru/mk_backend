@@ -30,6 +30,6 @@ const AdSchema = new mongoose.Schema(
 );
 
 // 🟢 THE MAGIC LINE: Delete this document 24 hours (86400 seconds) after creation
-AdSchema.index({ createdAt: 1 }, { expireAfterSeconds: 40000 });
+AdSchema.index({ createdAt: 1 }, { expireAfterSeconds: 60 });
 
 module.exports = mongoose.model("Ad", AdSchema);
